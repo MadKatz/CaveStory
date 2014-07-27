@@ -165,10 +165,11 @@ namespace CaveStory
             GraphicsDevice.Clear(Color.CornflowerBlue);
 
             // TODO: Add your drawing code here
-
             spriteBatch.Begin(SpriteSortMode.FrontToBack, BlendState.AlphaBlend);
-            map.Draw(spriteBatch);
-            player.Draw(spriteBatch);
+            player.Draw(spriteBatch, 1.0f);
+            map.Draw(spriteBatch, 0.9f);
+            map.DrawBackLayer(spriteBatch, 0.8f);
+            map.DrawBackGround(spriteBatch, graphics, 0.7f);
             spriteBatch.End();
 
             base.Draw(gameTime);

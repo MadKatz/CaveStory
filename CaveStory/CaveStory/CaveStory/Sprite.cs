@@ -25,10 +25,10 @@ namespace CaveStory
         {
         }
 
-        public void Draw(SpriteBatch spriteBatch, int x, int y)
+        public void Draw(SpriteBatch spriteBatch, int x, int y, float layerdepth)
         {
             Rectangle destination_Rect = new Rectangle(x, y, source_Rect.Width, source_Rect.Height);
-            spriteBatch.Draw(textureImage, destination_Rect, source_Rect, Color.White);
+            spriteBatch.Draw(textureImage, destination_Rect, source_Rect, Color.White, 0.0f, new Vector2(), SpriteEffects.None, layerdepth);
         }
     }
 }

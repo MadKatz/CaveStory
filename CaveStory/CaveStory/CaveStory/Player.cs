@@ -14,7 +14,6 @@ namespace CaveStory
         private Dictionary<SpriteState, Sprite> sprite = new Dictionary<SpriteState, Sprite>();
         private HorizontalFacing horizontalFacing;
         private VerticalFacing verticalFacing;
-        private Jump jump;
 
         //Collision Rectangle-X on Quote Texture (32x32 pixels)
         //6 pixels in
@@ -33,61 +32,71 @@ namespace CaveStory
         private int y;
         private float velocity_x;
         private float velocity_y;
-        private float acceleration_x;
+        private int acceleration_x;
         private bool onground;
+        private bool jump_active;
+        private bool interacting;
 
         public Player(Game1 game, int x, int y)
         {
             this.x = x;
             this.y = y;
-            acceleration_x = 0.0f;
+            acceleration_x = 0;
             velocity_x = 0.0f;
             velocity_y = 0.0f;
             horizontalFacing = HorizontalFacing.LEFT;
             verticalFacing = VerticalFacing.HORIZONTAL;
             onground = false;
+            jump_active = false;
+            interacting = false;
             InitializeSprites(game);
-            jump = new Jump();
         }
 
         public void Update(GameTime gameTime, Map map)
         {
             sprite[GetSpriteState()].Update(gameTime);
-            jump.Update(gameTime);
             UpdateX(gameTime, map);
             UpdateY(gameTime, map);
         }
 
-        public void Draw(SpriteBatch spriteBatch)
+        public void Draw(SpriteBatch spriteBatch, float layerdepth)
         {
-            sprite[GetSpriteState()].Draw(spriteBatch, x, y);
+            sprite[GetSpriteState()].Draw(spriteBatch, x, y, layerdepth);
         }
 
         public void StartMovingLeft()
         {
-            acceleration_x = -Constants.WALKING_ACCELERATION;
+            acceleration_x = -1;
             horizontalFacing = HorizontalFacing.LEFT;
+            interacting = false;
         }
 
         public void StartMovingRight()
         {
-            acceleration_x = Constants.WALKING_ACCELERATION;
+            acceleration_x = 1;
             horizontalFacing = HorizontalFacing.RIGHT;
+            interacting = false;
         }
 
         public void StopMoving()
         {
-            acceleration_x = 0.0f;
+            acceleration_x = 0;
         }
 
         public void LookUp()
         {
             verticalFacing = VerticalFacing.UP;
+            interacting = false;
         }
 
         public void LookDown()
         {
+            if (verticalFacing == VerticalFacing.DOWN)
+            {
+                return;
+            }
             verticalFacing = VerticalFacing.DOWN;
+            interacting = OnGround();
         }
 
         public void LookHorizontal()
@@ -97,22 +106,19 @@ namespace CaveStory
 
         public void StartJump()
         {
+            interacting = false;
+            jump_active = true;
             if (OnGround())
             {
-                jump.Reset();
                 //give ourselves an initial velocity up
                 velocity_y = -Constants.JUMPSPEED;
             }
             //else if we are mid jump
-            else if (velocity_y < 0.0f)
-            {
-                jump.Reactive();
-            }
         }
 
         public void StopJump()
         {
-            jump.Deactive();
+            jump_active = false;
         }
 
         private void InitializeSprites(Game1 game)
@@ -136,9 +142,9 @@ namespace CaveStory
 
         private void InitializeSprite(Game1 game, SpriteState spriteState)
         {
-            int source_y = spriteState.horizontal_facing == HorizontalFacing.LEFT ? Constants.CHARACTERFRAME * Constants.TILESIZE : (1 + Constants.CHARACTERFRAME) * Constants.TILESIZE;
             // CHARACTERFRAME * TITLESIZE if going left
             // otherwise (CHARACTERFRAME + 1) * TITLESIZE
+            int source_y = spriteState.horizontal_facing == HorizontalFacing.LEFT ? Constants.CHARACTERFRAME * Constants.TILESIZE : (1 + Constants.CHARACTERFRAME) * Constants.TILESIZE;
             int source_x = 0;
             switch (spriteState.motion_type)
             {
@@ -147,6 +153,9 @@ namespace CaveStory
                     break;
                 case MotionType.WALKING:
                     source_x = Constants.WALKFRAME * Constants.TILESIZE;
+                    break;
+                case MotionType.INTERACTING:
+                    source_x = Constants.BACKFRAME * Constants.TILESIZE;
                     break;
                 case MotionType.JUMPING:
                     source_x = Constants.JUMPFRAME * Constants.TILESIZE;
@@ -164,9 +173,9 @@ namespace CaveStory
             }
             else
             {
-                if (spriteState.verticalFacing == VerticalFacing.DOWN)
+                if (spriteState.verticalFacing == VerticalFacing.DOWN && (spriteState.motion_type == MotionType.JUMPING || spriteState.motion_type == MotionType.FALLING))
                 {
-                    source_x = spriteState.motion_type == MotionType.STANDING ? Constants.BACKFRAME * Constants.TILESIZE : Constants.DOWNFRAME * Constants.TILESIZE;
+                    source_x = Constants.DOWNFRAME * Constants.TILESIZE;
                 }
                 sprite[spriteState] = new Sprite(game, Constants.SPRITEFILEPATH, source_x, source_y, Constants.TILESIZE, Constants.TILESIZE);
             }
@@ -175,9 +184,13 @@ namespace CaveStory
         private SpriteState GetSpriteState()
         {
             MotionType motion;
-            if (OnGround())
+            if (interacting)
             {
-                motion = acceleration_x == 0.0f ? MotionType.STANDING : MotionType.WALKING;
+                motion = MotionType.INTERACTING;
+            }
+            else if (OnGround())
+            {
+                motion = acceleration_x == 0 ? MotionType.STANDING : MotionType.WALKING;
             }
             else
             {
@@ -214,18 +227,29 @@ namespace CaveStory
 
         private void UpdateX(GameTime gameTime, Map map)
         {
+            float temp_acceleration_x = 0.0f;
+            if (acceleration_x < 0)
+            {
+                temp_acceleration_x = OnGround() ? -Constants.WALKINGACCELERATION : -Constants.AIRACCELERATION;
+            }
+            else if (acceleration_x > 0)
+            {
+                temp_acceleration_x = OnGround() ? Constants.WALKINGACCELERATION : Constants.AIRACCELERATION;
+            }
             velocity_x += acceleration_x * gameTime.ElapsedGameTime.Milliseconds;
-            if (acceleration_x < 0.0f)
+            if (acceleration_x < 0)
             {
                 velocity_x = Math.Max(velocity_x, -Constants.MAXSPEEDX);
             }
-            else if (acceleration_x > 0.0f)
+            else if (acceleration_x > 0)
             {
                 velocity_x = Math.Min(velocity_x, Constants.MAXSPEEDX);
             }
             else if (OnGround())
             {
-                velocity_x *= Constants.SLOWDOWNFACTOR;
+                velocity_x = velocity_x > 0.0f ?
+                    Math.Max(0.0f, velocity_x - Constants.FRICTION * gameTime.ElapsedGameTime.Milliseconds) :
+                    Math.Min(0.0f, velocity_x + Constants.FRICTION * gameTime.ElapsedGameTime.Milliseconds);
             }
 
             // Calculate delta
@@ -279,10 +303,8 @@ namespace CaveStory
         private void UpdateY(GameTime gameTime, Map map)
         {
             // Update Velocity
-            if (!jump.Active())
-            {
-                velocity_y = Math.Min(velocity_y + Constants.GRAVITY * gameTime.ElapsedGameTime.Milliseconds, Constants.MAXSPEEDY);
-            }
+            float gravity = jump_active && velocity_y < 0.0f ? Constants.JUMPGRAVITY : Constants.GRAVITY;
+            velocity_y = Math.Min(velocity_y + gravity * gameTime.ElapsedGameTime.Milliseconds, Constants.MAXSPEEDY);
             // Calculate delta
             int delta = (int)Math.Round(velocity_y * gameTime.ElapsedGameTime.Milliseconds);
             if (delta > 0)
@@ -352,6 +374,7 @@ namespace CaveStory
         private enum MotionType
         {
             STANDING,
+            INTERACTING,
             WALKING,
             JUMPING,
             FALLING,
@@ -391,46 +414,6 @@ namespace CaveStory
                 this.collided = collided;
                 this.row = row;
                 this.col = col;
-            }
-        }
-        // had to use class instead of struct due to "Structs cannot contain explicit parameterless constructors" error.
-        private class Jump
-        {
-            private int time_remaining_ms;
-            private bool active;
-
-            public Jump()
-            {
-                time_remaining_ms = 0;
-                active = false;
-            }
-            public void Reset()
-            {
-                time_remaining_ms = Constants.JUMPTIME;
-                Reactive();
-            }
-            public void Reactive()
-            {
-                active = time_remaining_ms > 0;
-            }
-            public void Deactive()
-            {
-                active = false;
-            }
-            public bool Active()
-            {
-                return active;
-            }
-            public void Update(GameTime gameTime)
-            {
-                if (active)
-                {
-                    time_remaining_ms -= gameTime.ElapsedGameTime.Milliseconds;
-                    if (time_remaining_ms <= 0)
-                    {
-                        active = false;
-                    }
-                }
             }
         }
     }

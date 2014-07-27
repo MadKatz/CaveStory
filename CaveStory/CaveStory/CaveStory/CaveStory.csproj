@@ -73,6 +73,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AnimatedSprite.cs" />
+    <Compile Include="Backdrop.cs" />
     <Compile Include="Constants.cs" />
     <Compile Include="Input.cs" />
     <Compile Include="Map.cs" />
